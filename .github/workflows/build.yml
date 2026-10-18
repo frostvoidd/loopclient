@@ -16,18 +16,26 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      # Loom 1.9 needs Gradle 8.x; pin it, the runner default (9.x) breaks the build
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.12'
 
-      - name: versions
-        run: |
-          java -version
-          gradle --version
-
       - name: build
-        run: gradle build --no-daemon --stacktrace
+        run: |
+          set +e
+          gradle build --no-daemon --console=plain --stacktrace > build.log 2>&1
+          code=$?
+          echo "exit code: $code"
+          if [ $code -ne 0 ]; then
+            grep -nE "error:|What went wrong|Could not|Caused by|FAILURE|Execution failed|No such|not found" build.log \
+              | head -n 28 \
+              | while IFS= read -r line; do
+                  echo "::error title=gradle::$line"
+                done
+          fi
+          echo "===== build.log tail ====="
+          tail -n 80 build.log
+          exit $code
 
       - uses: actions/upload-artifact@v4
         with:
